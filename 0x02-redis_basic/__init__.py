@@ -9,3 +9,4 @@ class Cache:
 
     def store(data):
         return 
+

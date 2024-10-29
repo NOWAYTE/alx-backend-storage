@@ -2,7 +2,7 @@
 """ Redis module"""
 
 import redis
-import uuid
+from uuid import uuid4
 
 
 class Cache:
@@ -17,7 +17,7 @@ class Cache:
     def store(self, data):
         """defines the store method"""
 
-        key = str(uuid.uuid4())
+        key = str(uuid4())
         self._redis.mset({key: data})
 
         return key

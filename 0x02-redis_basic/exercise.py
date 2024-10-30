@@ -4,7 +4,6 @@
 import redis
 from uuid import uuid4
 
-
 class Cache:
     """Cache redis class"""
 

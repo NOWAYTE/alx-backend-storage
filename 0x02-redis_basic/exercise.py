@@ -13,6 +13,8 @@ class Cache:
         self._redis = redis.Redis()
         self._redis.flushdb()
 
+    def __get__(size):
+
     def store(self, data):
         """defines the store method"""
 

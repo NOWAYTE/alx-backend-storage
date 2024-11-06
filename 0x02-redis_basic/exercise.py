@@ -4,6 +4,7 @@
 import redis
 
 from uuid import uuid4
+from typing import Optional, Callable, Union
 
 class Cache:
     """Cache redis class"""
@@ -14,7 +15,7 @@ class Cache:
         self._redis = redis.Redis()
         self._redis.flushdb()
 
-    def get(self, key: str, fn: Optional[callable] = None) -> UnionTypes:
+    def get(self, key: str, fn: Optional[callable] = None) -> Union[str, None]:
 
         if fn:
             return fn(self._redis.get(key))

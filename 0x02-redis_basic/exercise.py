@@ -2,6 +2,7 @@
 """ Redis module"""
 
 import redis
+
 from uuid import uuid4
 
 class Cache:
@@ -13,7 +14,13 @@ class Cache:
         self._redis = redis.Redis()
         self._redis.flushdb()
 
-    def __get__(size):
+    def get(self, key: str, fn: Optional[callable] = None) -> UnionTypes:
+
+        if fn:
+            return fn(self._redis.get(key))
+        data = self._redis.get(key)
+
+        return data
 
     def store(self, data):
         """defines the store method"""

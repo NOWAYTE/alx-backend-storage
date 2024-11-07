@@ -16,6 +16,7 @@ class Cache:
         self._redis.flushdb()
 
     def get(self, key: str, fn: Optional[callable] = None) -> Union[str, None]:
+        """Take a string argument and optional argument"""
 
         if fn:
             return fn(self._redis.get(key))

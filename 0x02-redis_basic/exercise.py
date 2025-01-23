@@ -46,7 +46,6 @@ def call_history(method: Callable) -> Callable:
 
 
 def replay(method: Callable) -> None:
-    # sourcery skip: use-fstring-for-concatenation, use-fstring-for-formatting
     """
     Replays the history of a function
     Args:
@@ -56,13 +55,22 @@ def replay(method: Callable) -> None:
     """
     name = method.__qualname__
     cache = redis.Redis()
-    calls = cache.get(name).decode("utf-8")
-    print("{} was called {} times:".format(name, calls))
+    calls = cache.get(name)
+
+    if calls is None:
+        print(f"{name} was never called.")
+        return
+
+    calls = int(calls.decode("utf-8"))
+    print(f"{name} was called {calls} times:")
+
+    # Fetch inputs and outputs
     inputs = cache.lrange(name + ":inputs", 0, -1)
     outputs = cache.lrange(name + ":outputs", 0, -1)
+
+    # Ensure we have matching inputs and outputs
     for i, o in zip(inputs, outputs):
-        print("{}(*{}) -> {}".format(name, i.decode('utf-8'),
-                                     o.decode('utf-8')))
+        print(f"{name}(*{i.decode('utf-8')}) -> {o.decode('utf-8')}")
 
 
 class Cache:
@@ -113,3 +121,4 @@ class Cache:
         except Exception:
             value = 0
         return value
+

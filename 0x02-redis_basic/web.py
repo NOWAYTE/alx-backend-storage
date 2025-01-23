@@ -1,55 +1,80 @@
-#!/usr/bin/env python3
-""" expiring web cache module """
-
-import redis
 import requests
-from typing import Callable
+import time
 from functools import wraps
 
-# Use a more explicit name for the Redis client to avoid shadowing the module
-redis_client = redis.Redis()
+# Cache dictionary to store the HTML content and timestamps for URLs
+cache = {}
+# Dictionary to track the count of accesses per URL
+access_count = {}
 
-
-def wrap_requests(fn: Callable) -> Callable:
-    """ Decorator wrapper for caching web requests """
-
-    @wraps(fn)
-    def wrapper(url: str) -> str:
-        """ Wrapper that implements caching and counting logic """
-        try:
-            # Increment the access counter for this URL
-            redis_client.incr(f"count:{url}")
-
-            # Try to get cached response
-            cached_response = redis_client.get(f"cached:{url}")
-            if cached_response:
-                return cached_response.decode('utf-8')
-
-            # If no cached response, make the request
-            result = fn(url)
-
-            # Cache the result with 10 seconds expiration
-            redis_client.setex(f"cached:{url}", 10, result)
-
-            return result
-
-        except redis.RedisError as e:
-            # If Redis fails, just make the request without caching
-            return fn(url)
-
-    return wrapper
-
-
-@wrap_requests
-def get_page(url: str) -> str:
-    """Get page content from URL
-
-    Args:
-        url: URL to fetch
+# Cache decorator to handle caching and count tracking
+def cache_decorator(func):
+    """
+    A decorator function that wraps around the core `get_page` function.
+    Handles the caching of results and tracks the number of accesses for each URL.
+    
+    Parameters:
+    func (function): The function being decorated, in this case, `get_page`.
 
     Returns:
-        str: Page content
+    function: The wrapped version of `get_page` that handles caching and access counting.
     """
+    @wraps(func)
+    def wrapper(url: str):
+        """
+        This wrapper function manages caching and access counting.
+        
+        Parameters:
+        url (str): The URL to be fetched.
+
+        Returns:
+        str: The HTML content of the URL.
+        """
+        # Check if URL is already cached and if cache is still valid (10 seconds expiration)
+        if url in cache and (time.time() - cache[url]['timestamp'] < 10):
+            # Increment access count for the URL
+            access_count[url] += 1
+            return cache[url]['content']
+        
+        # If not cached or expired, call the function to fetch the page
+        content = func(url)
+        
+        # Cache the result with timestamp
+        cache[url] = {'content': content, 'timestamp': time.time()}
+        
+        # Set the count to 1 if it's the first access
+        if url not in access_count:
+            access_count[url] = 1
+        
+        return content
+    return wrapper
+
+# The actual get_page function wrapped with the cache decorator
+@cache_decorator
+def get_page(url: str) -> str:
+    """
+    Fetches the HTML content of the specified URL.
+    
+    Parameters:
+    url (str): The URL of the page to fetch.
+
+    Returns:
+    str: The HTML content of the page.
+    """
+    # Use requests to fetch the page content
     response = requests.get(url)
-    response.raise_for_status()  # Raise an exception for bad status codes
     return response.text
+
+# Function to get the access count for a URL
+def get_access_count(url: str) -> int:
+    """
+    Returns the number of times a URL has been accessed.
+    
+    Parameters:
+    url (str): The URL whose access count is to be retrieved.
+
+    Returns:
+    int: The number of times the URL was accessed.
+    """
+    return access_count.get(url, 0)
+

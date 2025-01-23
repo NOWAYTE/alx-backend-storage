@@ -27,10 +27,10 @@ def wrap_requests(fn: Callable) -> Callable:
 
             # If no cached response, make the request
             result = fn(url)
-            
+
             # Cache the result with 10 seconds expiration
             redis_client.setex(f"cached:{url}", 10, result)
-            
+
             return result
 
         except redis.RedisError as e:
@@ -43,10 +43,10 @@ def wrap_requests(fn: Callable) -> Callable:
 @wrap_requests
 def get_page(url: str) -> str:
     """Get page content from URL
-    
+
     Args:
         url: URL to fetch
-        
+
     Returns:
         str: Page content
     """

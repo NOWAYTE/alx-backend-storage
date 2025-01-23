@@ -1,92 +1,87 @@
 import requests
-import time
+import redis
 from functools import wraps
+from typing import Callable
+import time
 
-# Cache dictionary to store the HTML content and timestamps for URLs
-cache = {}
-# Dictionary to track the count of accesses per URL
-access_count = {}
+# Initialize Redis connection
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
 
-# Cache decorator to handle caching and count tracking
-def cache_decorator(func):
-    """
-    A decorator function that wraps around the core `get_page` function.
-    Handles the caching of results and tracks the number of accesses for each URL.
-    
-    Parameters:
-    func (function): The function being decorated, in this case, `get_page`.
+def cache_with_expiry(expiry_time: int = 10) -> Callable:
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(url: str) -> str:
+            # Create cache key for the URL
+            cache_key = f"cache:{url}"
+            count_key = f"count:{url}"
+            
+            # Increment the access counter for this URL
+            redis_client.incr(count_key)
+            
+            # Try to get cached content
+            cached_content = redis_client.get(cache_key)
+            if cached_content:
+                return cached_content.decode('utf-8')
+            
+            # If not cached, call the original function
+            content = func(url)
+            
+            # Cache the result with expiration
+            redis_client.setex(cache_key, expiry_time, content)
+            
+            return content
+        return wrapper
+    return decorator
 
-    Returns:
-    function: The wrapped version of `get_page` that handles caching and access counting.
-    """
-    @wraps(func)
-    def wrapper(url: str):
-        """
-        This wrapper function manages caching and access counting.
-        
-        Parameters:
-        url (str): The URL to be fetched.
-
-        Returns:
-        str: The HTML content of the URL.
-        """
-        # Check if URL is already cached and if cache is still valid (10 seconds expiration)
-        if url in cache and (time.time() - cache[url]['timestamp'] < 10):
-            # Increment access count for the URL
-            access_count[url] += 1
-            return cache[url]['content']
-        
-        # If not cached or expired, call the function to fetch the page
-        content = func(url)
-        
-        # Cache the result with timestamp
-        cache[url] = {'content': content, 'timestamp': time.time()}
-        
-        # Set the count to 1 if it's the first access
-        if url not in access_count:
-            access_count[url] = 1
-        
-        return content
-    return wrapper
-
-# The actual get_page function wrapped with the cache decorator
-@cache_decorator
+@cache_with_expiry(10)
 def get_page(url: str) -> str:
     """
-    Fetches the HTML content of the specified URL.
+    Fetches the HTML content of a given URL with caching and access tracking.
     
-    Parameters:
-    url (str): The URL of the page to fetch.
-
+    Args:
+        url (str): The URL to fetch content from
+        
     Returns:
-    str: The HTML content of the page.
+        str: The HTML content of the page
     """
-    # Use requests to fetch the page content
     response = requests.get(url)
+    response.raise_for_status()  # Raise an exception for bad status codes
     return response.text
 
-# Function to get the access count for a URL
-def get_access_count(url: str) -> int:
-    """
-    Returns the number of times a URL has been accessed.
-    
-    Parameters:
-    url (str): The URL whose access count is to be retrieved.
-
-    Returns:
-    int: The number of times the URL was accessed.
-    """
-    return access_count.get(url, 0)
-
-# Testing with a slow URL to simulate caching
+# Example usage and testing
 if __name__ == "__main__":
-    url = "http://slowwly.robertomurray.co.uk/delay/5000/url/http://example.com"
+    # Test URL (slow response)
+    test_url = "http://slowwly.robertomurray.co.uk/delay/3000/url/http://www.google.com"
     
-    # Fetch the page twice with caching
-    print(get_page(url))  # This will take time the first time
-    time.sleep(1)
-    print(get_page(url))  # This will return the cached result
-    
-    # Check how many times the URL was accessed
-    print(f"Access count for {url}: {get_access_count(url)}")
-
+    # Test the function
+    try:
+        # First request (should be slow)
+        print("First request...")
+        start_time = time.time()
+        content = get_page(test_url)
+        print(f"Time taken: {time.time() - start_time:.2f} seconds")
+        
+        # Second request (should be fast, from cache)
+        print("\nSecond request...")
+        start_time = time.time()
+        content = get_page(test_url)
+        print(f"Time taken: {time.time() - start_time:.2f} seconds")
+        
+        # Print access count
+        count = redis_client.get(f"count:{test_url}")
+        print(f"\nURL accessed {count.decode('utf-8')} times")
+        
+        # Wait for cache to expire
+        print("\nWaiting for cache to expire (11 seconds)...")
+        time.sleep(11)
+        
+        # Third request (should be slow again)
+        print("\nThird request (after cache expiration)...")
+        start_time = time.time()
+        content = get_page(test_url)
+        print(f"Time taken: {time.time() - start_time:.2f} seconds")
+        
+    except requests.RequestException as e:
+        print(f"Error fetching URL: {e}")
+    except redis.RedisError as e:
+        print(f"Redis error: {e}")

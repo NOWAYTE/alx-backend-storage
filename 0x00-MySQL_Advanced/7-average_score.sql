@@ -1,15 +1,22 @@
--- script that creates a stored 
+-- stored procedure ComputerAverageScoreForUser
 DELIMITER $$
-CREATE PROCEDURE AddBonus(IN user_id INTEGER, IN project_name VARCHAR(255), IN score INTEGER)
-BEGIN
-    INSERT INTO projects(name)
-    SELECT project_name FROM DUAL
-    WHERE NOT EXISTS(SELECT * FROM projects WHERE name = project_name LIMIT 1);
 
-    INSERT INTO corrections(user_id, project_id, score) 
-    VALUES (
-    user_id,
-    (SELECT id FROM projects WHERE name = project_name),
-    score); 
-END $$
-DELIMITER;
+CREATE PROCEDURE ComputeAverageScoreForUser(
+    IN user_id INT
+)
+BEGIN
+    DECLARE avg_score DECIMAL(10, 2);
+
+    -- Compute the average score for the user
+    SELECT AVG(score) INTO avg_score
+    FROM corrections
+    WHERE user_id = user_id;
+
+    -- Update the user's average score in the users table
+    UPDATE users
+    SET average_score = avg_score
+    WHERE id = user_id;
+END$$
+
+DELIMITER ;
+

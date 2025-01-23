@@ -23,7 +23,3 @@ def fetch_nginx_logs():
     )
 
     print(f'{status_check_count} status check')
-
-if __name__ == "__main__":
-    fetch_nginx_logs()
-
